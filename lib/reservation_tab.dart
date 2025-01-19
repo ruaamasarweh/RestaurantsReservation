@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:restaurants/providers/branch_details_provider.dart';
 import 'package:restaurants/providers/reservation_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:restaurants/models/branch_class.dart';
@@ -53,17 +54,74 @@ class _ReservationTabState extends State<ReservationTab> {
     }
   }
 
-  Future<void> _selectTime(BuildContext context) async {
-    final TimeOfDay? picked = await showTimePicker(
-      context: context,
-      initialTime: selectedTime,
+Future<void> _selectTime(BuildContext context, String openTime, String closeTime) async {
+  final openTimeParts = openTime.split(':');
+  final closeTimeParts = closeTime.split(':');
+
+  final openDateTime = DateTime(
+    selectedDate.year,
+    selectedDate.month,
+    selectedDate.day,
+    int.parse(openTimeParts[0]),
+    int.parse(openTimeParts[1]),
+  );
+
+  final closeDateTime = DateTime(
+    selectedDate.year,
+    selectedDate.month,
+    selectedDate.day,
+    int.parse(closeTimeParts[0]),
+    int.parse(closeTimeParts[1]),
+  );
+
+
+  final TimeOfDay? selected = await showTimePicker(
+    context: context,
+    initialTime: TimeOfDay(hour: openDateTime.hour, minute: openDateTime.minute),
+  );
+
+  if (selected != null) {
+    final selectedDateTime = DateTime(
+      selectedDate.year,
+      selectedDate.month,
+      selectedDate.day,
+      selected.hour,
+      selected.minute,
     );
-    if (picked != null && picked != selectedTime) {
+
+    if (selectedDateTime.isBefore(openDateTime) || selectedDateTime.isAfter(closeDateTime)) {
+      _showTimeErrorDialog(context, openTime, closeTime);
+    } else {
       setState(() {
-        selectedTime = picked;
+        selectedTime = selected;
       });
     }
   }
+}
+
+void _showTimeErrorDialog(BuildContext context, String openTime, String closeTime) {
+  showDialog(
+    context: context,
+    builder: (BuildContext context) {
+      return AlertDialog(
+        title: const Text('Invalid Time'),
+        content: Text(
+          'Please choose a time between $openTime and $closeTime.',
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+            },
+            child: const Text('OK'),
+          ),
+        ],
+      );
+    },
+  );
+}
+
+
 
   String formatDate(DateTime date) {
     return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
@@ -82,7 +140,7 @@ class _ReservationTabState extends State<ReservationTab> {
   @override
   Widget build(BuildContext context) {
     final reservationProvider = Provider.of<ReservationProvider>(context);
-
+    final branchDetailsProvider=Provider.of<BranchDetailsProvider>(context);
     return Scaffold(
       appBar: AppBar(),
       body: SingleChildScrollView(
@@ -97,7 +155,7 @@ class _ReservationTabState extends State<ReservationTab> {
               const SizedBox(height: 50.0),
               _buildDateField(),
               const SizedBox(height: 25.0),
-              _buildTimeField(),
+              _buildTimeField(branchDetailsProvider.branch!.openTime!,branchDetailsProvider.branch!.closeTime!),
               const SizedBox(height: 25.0),
               _buildGuestsField(),
               const SizedBox(height: 40.0),
@@ -131,14 +189,14 @@ class _ReservationTabState extends State<ReservationTab> {
     );
   }
 
-  Widget _buildTimeField() {
+  Widget _buildTimeField(String openTime, String closedTime) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text("TIME", style: TextStyle(fontWeight: FontWeight.bold)),
         const SizedBox(height: 10.0),
         InkWell(
-          onTap: () => _selectTime(context),
+          onTap: () => _selectTime(context,openTime,closedTime),
           child: InputDecorator(
             decoration: const InputDecoration(
               suffixIcon: Icon(Icons.access_time, color: Color.fromARGB(255, 255, 117, 25)),
